@@ -1,11 +1,15 @@
 import { exec, spawnSync } from "child_process";
 import fs from "node:fs";
 import path from "node:path";
-import iconutil from "iconutil";
 import plist from "plist";
 
 import { AppData } from "../../utils/validators";
 import { allApps } from "../../watchers/apps";
+
+// We'll use dynamic import for iconutil
+const getIconutil = async () => {
+  return (await import("iconutil")).default;
+};
 
 export async function getInstalledApps(
   directory = "/Applications",
@@ -198,6 +202,8 @@ async function parseIconFromIcnsFile(path: string) {
     return 0;
   }
 
+  const iconutil = await getIconutil();
+  
   return new Promise<string>((resolve, reject) => {
     iconutil.toIconset(path, function (err, icons) {
       if (err) {

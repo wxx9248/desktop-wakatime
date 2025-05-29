@@ -1,4 +1,6 @@
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { dirname } from "node:path";
 import { openWindowsAsync, WindowInfo } from "@miniben90/x-win";
 import {
   app,
@@ -22,6 +24,10 @@ import { Logging, LogLevel } from "./utils/logging";
 import { AppData } from "./utils/validators";
 import { Wakatime } from "./watchers/wakatime";
 import { Watcher } from "./watchers/watcher";
+
+// ESM replacement for __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // The built directory structure
 //
@@ -215,7 +221,7 @@ function createTray() {
 
 // Hide app from macOS doc
 if (isMacOS) {
-  app.dock.hide();
+  app.dock?.hide();
 }
 
 const gotTheLock = app.requestSingleInstanceLock();
