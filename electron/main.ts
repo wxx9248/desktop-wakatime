@@ -29,6 +29,34 @@ import { Watcher } from "./watchers/watcher";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// Wayland/X11 compatibility setup
+function setupWaylandCompatibility() {
+  // Check if we're running on GNOME
+  const isGNOME = process.env.XDG_CURRENT_DESKTOP?.includes("GNOME");
+  const isWayland = process.env.XDG_SESSION_TYPE === "wayland" || process.env.WAYLAND_DISPLAY;
+  
+  if (!isGNOME && isWayland) {
+    // Logger is not available here, so we use console.debug
+    console.debug("Detected non-GNOME environment, setting up X11 fallback for window management");
+    
+    // Force x-win to use X11 backend to avoid DBus service issues
+    if (!process.env.DISPLAY && process.env.WAYLAND_DISPLAY) {
+      // Try to set up XWayland if available
+      process.env.DISPLAY = ":0";
+    }
+    
+    // Set environment variables for better compatibility
+    process.env.XDG_SESSION_TYPE = "x11";
+    process.env.WINIT_UNIX_BACKEND = "x11";
+    
+    // Remove WAYLAND_DISPLAY
+    delete process.env.WAYLAND_DISPLAY;
+  }
+}
+
+// Set up compatibility before any window operations
+setupWaylandCompatibility();
+
 // The built directory structure
 //
 // ├─┬─┬ dist
@@ -282,19 +310,39 @@ async function windowsToApps(windows: WindowInfo[]) {
       )
       .sort((a, b) => a.info.name.localeCompare(b.info.name))
       .map(async (window) => {
-        const icon = (await window.getIconAsync()).data;
-        return {
-          id: window.info.path,
-          name: window.info.name,
-          path: window.info.path,
-          icon,
-          isBrowser: false,
-          isDefaultEnabled: false,
-          isElectronApp: false,
-          bundleId: null,
-          version: null,
-          execName: path.parse(window.info.path).base,
-        } satisfies AppData;
+        try {
+          const icon = (await window.getIconAsync()).data;
+          return {
+            id: window.info.path,
+            name: window.info.name,
+            path: window.info.path,
+            icon,
+            isBrowser: false,
+            isDefaultEnabled: false,
+            isElectronApp: false,
+            bundleId: null,
+            version: null,
+            execName: path.parse(window.info.path).base,
+          } satisfies AppData;
+        } catch (error) {
+          Logging.instance().log(
+            `Failed to get icon for window ${window.info.name}: ${error}`,
+            LogLevel.WARN
+          );
+          // Return window info without icon as fallback
+          return {
+            id: window.info.path,
+            name: window.info.name,
+            path: window.info.path,
+            icon: null,
+            isBrowser: false,
+            isDefaultEnabled: false,
+            isElectronApp: false,
+            bundleId: null,
+            version: null,
+            execName: path.parse(window.info.path).base,
+          } satisfies AppData;
+        }
       }),
   );
 }
@@ -325,19 +373,38 @@ ipcMain.on(IpcKeys.getAllApps, (event) => {
 });
 
 ipcMain.on(IpcKeys.getOpenApps, async (event) => {
-  const windows = await openWindowsAsync();
-  const apps = await windowsToApps(windows);
-  event.returnValue = apps.filter((app) => !AppsManager.isExcludedApp(app));
+  try {
+    const windows = await openWindowsAsync();
+    const apps = await windowsToApps(windows);
+    event.returnValue = apps.filter((app) => !AppsManager.isExcludedApp(app));
+  } catch (error) {
+    Logging.instance().log(
+      `Failed to get open windows: ${error}. This might be due to missing DBus services on Wayland.`,
+      LogLevel.ERROR
+    );
+    // Return empty array as fallback
+    event.returnValue = [];
+  }
 });
 
 ipcMain.on(IpcKeys.getAllAvailableApps, async (event) => {
-  const apps = AppsManager.instance().getAllApps();
-  const windows = await openWindowsAsync();
-  const openApps = await windowsToApps(windows);
-  const uniqueOpenApps = openApps
-    .filter((app) => !AppsManager.instance().getApp(app.path))
-    .filter((app) => !AppsManager.isExcludedApp(app));
-  event.returnValue = [...apps, ...uniqueOpenApps];
+  try {
+    const apps = AppsManager.instance().getAllApps();
+    const windows = await openWindowsAsync();
+    const openApps = await windowsToApps(windows);
+    const uniqueOpenApps = openApps
+      .filter((app) => !AppsManager.instance().getApp(app.path))
+      .filter((app) => !AppsManager.isExcludedApp(app));
+    event.returnValue = [...apps, ...uniqueOpenApps];
+  } catch (error) {
+    Logging.instance().log(
+      `Failed to get available apps: ${error}. Falling back to installed apps only.`,
+      LogLevel.ERROR
+    );
+    // Return only installed apps as fallback
+    const apps = AppsManager.instance().getAllApps();
+    event.returnValue = apps;
+  }
 });
 
 ipcMain.on(IpcKeys.getAppVersion, (event) => {

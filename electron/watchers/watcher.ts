@@ -19,6 +19,7 @@ export class Watcher {
   private activeWindowSubscription: number | null;
   private gkl: GlobalKeyboardListener;
   private isWatchingForKeyboardEvents = false;
+  private fallbackMode = false;
 
   constructor(wakatime: Wakatime) {
     this.wakatime = wakatime;
@@ -33,7 +34,20 @@ export class Watcher {
 
     try {
       // To ensure we always retrieve the most current window information, including the updated URL and title, we use the activeWindow function instead of relying on the previously stored this.activeApp. This approach addresses the issue where switching tabs in your browser does not trigger a window change event, leading to activeApp retaining outdated URL and title information.
-      const window = activeWindow();
+      let window: WindowInfo;
+      try {
+        window = activeWindow();
+      } catch (error) {
+        if (!this.fallbackMode) {
+          Logging.instance().log(
+            `Failed to get active window: ${error}. This might be due to missing DBus services on Wayland. Switching to fallback mode.`,
+            LogLevel.WARN
+          );
+          this.fallbackMode = true;
+        }
+        return;
+      }
+      
       const app = AppsManager.instance().getApp(window.info.path);
       const heartbeatData = MonitoredApp.heartbeatData(window, app);
       if (!heartbeatData) {
@@ -66,45 +80,64 @@ export class Watcher {
   }
 
   start() {
-    this.activeWindowSubscription = subscribeActiveWindow(
-      (windowInfo: WindowInfo) => {
-        if (!windowInfo.info.processId) return;
-        if (this.activeWindow?.info.processId === windowInfo.info.processId) {
-          return;
-        }
+    try {
+      this.activeWindowSubscription = subscribeActiveWindow(
+        (windowInfo: WindowInfo) => {
+          if (!windowInfo.info.processId) return;
+          if (this.activeWindow?.info.processId === windowInfo.info.processId) {
+            return;
+          }
 
-        if (this.isWatchingForKeyboardEvents) {
-          this.unwatchKeyboardEvents();
-        }
+          if (this.isWatchingForKeyboardEvents) {
+            this.unwatchKeyboardEvents();
+          }
 
-        Logging.instance().log(
-          `App changed from ${this.activeWindow?.info.name || "nil"} to ${windowInfo.info.name}`,
-        );
-
-        this.activeWindow = windowInfo;
-        if (this.activeWindow.info.path) {
-          const isMonitored = MonitoringManager.isMonitored(
-            this.activeWindow.info.path,
+          Logging.instance().log(
+            `App changed from ${this.activeWindow?.info.name || "nil"} to ${windowInfo.info.name}`,
           );
 
-          if (isMonitored) {
-            Logging.instance().log(
-              `Monitoring ${windowInfo.info.name}: ${this.activeWindow.info.path}`,
+          this.activeWindow = windowInfo;
+          if (this.activeWindow.info.path) {
+            const isMonitored = MonitoringManager.isMonitored(
+              this.activeWindow.info.path,
             );
-            this.watchKeyboardEvents();
-          } else {
-            Logging.instance().log(
-              `Not monitoring ${windowInfo.info.name}: ${this.activeWindow.info.path}`,
-            );
+
+            if (isMonitored) {
+              Logging.instance().log(
+                `Monitoring ${windowInfo.info.name}: ${this.activeWindow.info.path}`,
+              );
+              this.watchKeyboardEvents();
+            } else {
+              Logging.instance().log(
+                `Not monitoring ${windowInfo.info.name}: ${this.activeWindow.info.path}`,
+              );
+            }
           }
-        }
-      },
-    );
+        },
+      );
+    } catch (error) {
+      Logging.instance().log(
+        `Failed to start window monitoring: ${error}. This might be due to missing DBus services on Wayland. Window monitoring will be limited.`,
+        LogLevel.ERROR
+      );
+      this.fallbackMode = true;
+      // In fallback mode, we still enable keyboard monitoring for manual app tracking
+      this.watchKeyboardEvents();
+    }
   }
 
   stop() {
     if (this.activeWindowSubscription !== null) {
-      unsubscribeActiveWindow(this.activeWindowSubscription);
+      try {
+        unsubscribeActiveWindow(this.activeWindowSubscription);
+      } catch (error) {
+        Logging.instance().log(
+          `Failed to unsubscribe from window monitoring: ${error}`,
+          LogLevel.WARN
+        );
+      }
+      this.activeWindowSubscription = null;
     }
+    this.unwatchKeyboardEvents();
   }
 }
