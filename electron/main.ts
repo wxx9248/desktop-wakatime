@@ -20,7 +20,6 @@ import { SettingsManager } from "./helpers/settings-manager";
 import { getLogFilePath } from "./utils";
 import { DeepLink, IpcKeys, WAKATIME_PROTOCALL } from "./utils/constants";
 import { Logging, LogLevel } from "./utils/logging";
-import { AppData } from "./utils/validators";
 import { Wakatime } from "./watchers/wakatime";
 import { ProcessWatcher } from "./watchers/process-watcher";
 import { EnrolledProgramsManager } from "./helpers/enrolled-programs-manager";
@@ -112,9 +111,9 @@ function createSettingsWindow() {
   });
 }
 
-function createMonitoredAppsWindow() {
+function createEnrolledProgramsWindow() {
   monitoredAppsWindow = new BrowserWindow({
-    title: "Monitored Apps",
+    title: "Enrolled Programs",
     icon: getWindowIcon(),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -123,10 +122,10 @@ function createMonitoredAppsWindow() {
     skipTaskbar: true,
     minimizable: false,
     fullscreenable: false,
-    width: 444,
-    height: 620,
-    minWidth: 320,
-    minHeight: 320,
+    width: 600,
+    height: 700,
+    minWidth: 500,
+    minHeight: 400,
     autoHideMenuBar: true,
   });
 
@@ -156,12 +155,12 @@ function openSettings() {
   }
 }
 
-function openMonitoredApps() {
+function openEnrolledPrograms() {
   if (monitoredAppsWindow) {
     if (monitoredAppsWindow.isMinimized()) monitoredAppsWindow.restore();
     monitoredAppsWindow.focus();
   } else {
-    createMonitoredAppsWindow();
+    createEnrolledProgramsWindow();
   }
 }
 
@@ -182,9 +181,9 @@ function createTray() {
       click: openSettings,
     },
     {
-      label: "Monitored Apps",
+      label: "Enrolled Programs",
       type: "normal",
-      click: openMonitoredApps,
+      click: openEnrolledPrograms,
     },
     { type: "separator" },
     {
@@ -233,7 +232,7 @@ function handleDeepLink(url: string) {
       openSettings();
       break;
     case DeepLink.monitoredApps:
-      openMonitoredApps();
+      openEnrolledPrograms();
       break;
     default:
       break;
@@ -359,17 +358,10 @@ ipcMain.on(IpcKeys.getPlatform, (event) => {
   event.returnValue = process.platform;
 });
 
-ipcMain.on(IpcKeys.isMonitored, (event, path) => {
-  event.returnValue = MonitoringManager.isMonitored(path);
-});
-
-ipcMain.on(IpcKeys.setMonitored, (_, app: AppData, monitor: boolean) => {
-  MonitoringManager.set(app, monitor);
-});
-
 ipcMain.on(IpcKeys.autoUpdateEnabled, (event) => {
   event.returnValue = PropertiesManager.autoUpdateEnabled;
 });
+
 ipcMain.on(IpcKeys.setAutoUpdateEnabled, (_, value) => {
   PropertiesManager.autoUpdateEnabled = value;
   if (value) {
@@ -475,7 +467,6 @@ ipcMain.handle(IpcKeys.showFileDialog, async () => {
     title: 'Select Program to Enroll',
     properties: ['openFile'],
     filters: [
-      { name: 'Executable Files', extensions: ['exe', 'app', 'AppImage', 'deb', 'rpm'] },
       { name: 'All Files', extensions: ['*'] }
     ]
   });

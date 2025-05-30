@@ -28,7 +28,6 @@
     "@radix-ui/react-tabs": "^1.1.12",
     "@tanstack/react-query": "^5.79.0",
     "auto-launch": "^5.0.6",
-    "better-sqlite3": "^11.10.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "config": "^4.0.0",

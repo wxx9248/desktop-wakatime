@@ -10,7 +10,6 @@ import { Label } from "~/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Textarea } from "~/components/ui/textarea";
 import { IpcKeys } from "../../electron/utils/constants";
-import { EnrolledPrograms } from "~/components/EnrolledPrograms";
 
 // Simple debounce hook
 function useDebounceCallback(
@@ -302,10 +301,6 @@ export function SettingsPage() {
           </div>
         </div>
       )}
-      
-      <div className="space-y-6">
-        <EnrolledPrograms />
-      </div>
       
       <div className="flex-1"></div>
       <div>

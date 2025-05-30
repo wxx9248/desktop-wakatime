@@ -1,44 +1,36 @@
-import { getDesktopWakaTimeConfigFilePath } from "../utils";
+import { EnrolledProgramsManager } from "./enrolled-programs-manager";
 import { AppData } from "../utils/validators";
-import { AppsManager } from "./apps-manager";
-import { ConfigFileReader } from "./config-file-reader";
 
 export abstract class MonitoringManager {
   static isBrowserMonitored() {
-    const browserApps = AppsManager.instance().installedApps.filter(
-      (app) => app.isBrowser,
-    );
-    return browserApps.findIndex((app) => this.isMonitored(app.path)) !== -1;
+    // Since we're moving to enrolled programs, browsers would be enrolled manually
+    // For now, return false to disable browser-specific functionality
+    return false;
   }
 
   static isMonitored(path: string) {
-    const monitoringKey = this.monitoredKey(path);
-    const file = getDesktopWakaTimeConfigFilePath();
-    const monitoring = ConfigFileReader.getBool(
-      file,
-      "monitoring",
-      monitoringKey,
-    );
-    if (monitoring === null) {
-      ConfigFileReader.setBool(file, "monitoring", monitoringKey, false);
-      return false;
-    }
-    return monitoring;
+    // Check if the program is enrolled instead of using the old config system
+    const enrolledManager = EnrolledProgramsManager.getInstance();
+    return enrolledManager.isProgramEnrolled(path);
   }
 
-  static set(app: AppData, monitor: boolean) {
-    if (AppsManager.isExcludedApp(app)) {
-      return;
+  static set(appData: AppData, monitor: boolean) {
+    // This method is deprecated but kept for compatibility
+    // In the new system, use EnrolledProgramsManager directly
+    const enrolledManager = EnrolledProgramsManager.getInstance();
+    
+    if (monitor) {
+      enrolledManager.enrollProgram(appData.path);
+    } else {
+      const program = enrolledManager.getProgramByPath(appData.path);
+      if (program) {
+        enrolledManager.removeProgram(program.id);
+      }
     }
-    if (!AppsManager.instance().getApp(app.path)) {
-      AppsManager.instance().addExtraApp(app);
-    }
-    const monitoringKey = this.monitoredKey(app.path);
-    const file = getDesktopWakaTimeConfigFilePath();
-    ConfigFileReader.setBool(file, "monitoring", monitoringKey, monitor);
   }
 
   static monitoredKey(path: string) {
+    // This method is kept for compatibility but not used in the new system
     return `is_${path}_monitored`;
   }
 }
