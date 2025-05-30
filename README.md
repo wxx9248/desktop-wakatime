@@ -13,7 +13,7 @@ Keep the app running in your system tray, and your app usage will show on your [
 ## Local Development Setup
 
 ```shell
-git clone git@github.com:wakatime/desktop-wakatime.git
+git clone git@github.com:wxx9248/desktop-wakatime.git
 cd desktop-wakatime
 npm i
 npm run dev
