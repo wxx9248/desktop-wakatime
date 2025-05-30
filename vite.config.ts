@@ -23,7 +23,6 @@ export default defineConfig({
           build: {
             rollupOptions: {
               external: [
-                "@miniben90/x-win",
                 "node-global-key-listener",
                 "icon-promise",
               ],

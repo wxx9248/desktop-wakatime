@@ -1,7 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
-import { openWindowsAsync, WindowInfo } from "@miniben90/x-win";
 import {
   app,
   BrowserWindow,
@@ -23,7 +22,8 @@ import { DeepLink, IpcKeys, WAKATIME_PROTOCALL } from "./utils/constants";
 import { Logging, LogLevel } from "./utils/logging";
 import { AppData } from "./utils/validators";
 import { Wakatime } from "./watchers/wakatime";
-import { Watcher } from "./watchers/watcher";
+import { ProcessWatcher } from "./watchers/process-watcher";
+import { EnrolledProgramsManager } from "./helpers/enrolled-programs-manager";
 
 // ESM replacement for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -51,7 +51,7 @@ const isMacOS = process.platform === "darwin";
 let settingsWindow: BrowserWindow | null = null;
 let monitoredAppsWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
-let watcher: Watcher | null = null;
+let watcher: ProcessWatcher | null = null;
 let wakatime: Wakatime | null = null;
 
 // 🚧 Use ['ENV_NAME'] avoid vite:define plugin - Vite@2.x
@@ -254,7 +254,7 @@ if (!gotTheLock) {
     createTray();
     wakatime = new Wakatime();
     wakatime.init(tray);
-    watcher = new Watcher(wakatime);
+    watcher = new ProcessWatcher(wakatime);
     watcher.start();
   });
 
@@ -271,33 +271,6 @@ app.on("quit", () => {
   Logging.instance().log("WakaTime will terminate");
   watcher?.stop();
 });
-
-async function windowsToApps(windows: WindowInfo[]) {
-  return Promise.all(
-    windows
-      .filter(
-        (win, i) =>
-          win.info.execName &&
-          windows.findIndex((win2) => win2.info.path === win.info.path) === i,
-      )
-      .sort((a, b) => a.info.name.localeCompare(b.info.name))
-      .map(async (window) => {
-        const icon = (await window.getIconAsync()).data;
-        return {
-          id: window.info.path,
-          name: window.info.name,
-          path: window.info.path,
-          icon,
-          isBrowser: false,
-          isDefaultEnabled: false,
-          isElectronApp: false,
-          bundleId: null,
-          version: null,
-          execName: path.parse(window.info.path).base,
-        } satisfies AppData;
-      }),
-  );
-}
 
 // IPC Events
 ipcMain.on(
@@ -325,19 +298,57 @@ ipcMain.on(IpcKeys.getAllApps, (event) => {
 });
 
 ipcMain.on(IpcKeys.getOpenApps, async (event) => {
-  const windows = await openWindowsAsync();
-  const apps = await windowsToApps(windows);
-  event.returnValue = apps.filter((app) => !AppsManager.isExcludedApp(app));
+  // Return enrolled programs that are currently running
+  const enrolledManager = EnrolledProgramsManager.getInstance();
+  const enrolledPrograms = enrolledManager.getAllPrograms();
+  const runningPrograms = watcher?.getCurrentlyRunningPrograms() || [];
+  
+  const runningEnrolledApps = enrolledPrograms
+    .filter(program => runningPrograms.includes(program.path))
+    .map(program => ({
+      id: program.path,
+      name: program.name,
+      path: program.path,
+      icon: null,
+      isBrowser: false,
+      isDefaultEnabled: false,
+      isElectronApp: false,
+      bundleId: null,
+      version: null,
+      execName: program.name,
+    }));
+  
+  event.returnValue = runningEnrolledApps;
 });
 
 ipcMain.on(IpcKeys.getAllAvailableApps, async (event) => {
+  // Return all installed apps plus enrolled programs
   const apps = AppsManager.instance().getAllApps();
-  const windows = await openWindowsAsync();
-  const openApps = await windowsToApps(windows);
-  const uniqueOpenApps = openApps
-    .filter((app) => !AppsManager.instance().getApp(app.path))
-    .filter((app) => !AppsManager.isExcludedApp(app));
-  event.returnValue = [...apps, ...uniqueOpenApps];
+  const enrolledManager = EnrolledProgramsManager.getInstance();
+  const enrolledPrograms = enrolledManager.getAllPrograms();
+  
+  const enrolledAsApps = enrolledPrograms.map(program => ({
+    id: program.path,
+    name: program.name,
+    path: program.path,
+    icon: null,
+    isBrowser: false,
+    isDefaultEnabled: false,
+    isElectronApp: false,
+    bundleId: null,
+    version: null,
+    execName: program.name,
+  }));
+  
+  // Combine and deduplicate
+  const allApps = [...apps];
+  enrolledAsApps.forEach(enrolledApp => {
+    if (!allApps.find(app => app.path === enrolledApp.path)) {
+      allApps.push(enrolledApp);
+    }
+  });
+  
+  event.returnValue = allApps;
 });
 
 ipcMain.on(IpcKeys.getAppVersion, (event) => {
@@ -438,4 +449,40 @@ ipcMain.on(IpcKeys.setAllowlist, (_, value: string) => {
 
 ipcMain.on(IpcKeys.shellOpenExternal, (_, url: string) => {
   shell.openExternal(url);
+});
+
+// Enrolled programs management
+ipcMain.on(IpcKeys.getEnrolledPrograms, (event) => {
+  const enrolledManager = EnrolledProgramsManager.getInstance();
+  event.returnValue = enrolledManager.getAllPrograms();
+});
+
+ipcMain.on(IpcKeys.enrollProgram, (event, programPath: string) => {
+  const enrolledManager = EnrolledProgramsManager.getInstance();
+  const result = enrolledManager.enrollProgram(programPath);
+  event.returnValue = result;
+});
+
+ipcMain.on(IpcKeys.removeEnrolledProgram, (event, programId: string) => {
+  const enrolledManager = EnrolledProgramsManager.getInstance();
+  const result = enrolledManager.removeProgram(programId);
+  event.returnValue = result;
+});
+
+ipcMain.handle(IpcKeys.showFileDialog, async () => {
+  const { dialog } = await import('electron');
+  const result = await dialog.showOpenDialog({
+    title: 'Select Program to Enroll',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Executable Files', extensions: ['exe', 'app', 'AppImage', 'deb', 'rpm'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  });
+  
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+  
+  return result.filePaths[0];
 });

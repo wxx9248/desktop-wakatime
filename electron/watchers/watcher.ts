@@ -1,11 +1,32 @@
 import type { IGlobalKeyListener } from "node-global-key-listener";
-import {
-  activeWindow,
-  subscribeActiveWindow,
-  unsubscribeActiveWindow,
-  WindowInfo,
-} from "@miniben90/x-win";
 import { GlobalKeyboardListener } from "node-global-key-listener";
+
+// Local WindowInfo interface for compatibility (this file is deprecated)
+interface WindowInfo {
+  url?: string;
+  title: string;
+  info: {
+    name: string;
+    path: string;
+    processId: number;
+  };
+}
+
+// Deprecated functions for compatibility
+function activeWindow(): WindowInfo {
+  return {
+    title: "",
+    info: { name: "", path: "", processId: 0 }
+  };
+}
+
+function subscribeActiveWindow(_callback: (info: WindowInfo) => void): number {
+  return 0;
+}
+
+function unsubscribeActiveWindow(_id: number): void {
+  // No-op
+}
 
 import { AppsManager } from "../helpers/apps-manager";
 import { MonitoredApp } from "../helpers/monitored-app";

@@ -1,4 +1,13 @@
-import { WindowInfo } from "@miniben90/x-win";
+// Local WindowInfo interface for compatibility
+interface WindowInfo {
+  url?: string;
+  title: string;
+  info: {
+    name: string;
+    path: string;
+    processId: number;
+  };
+}
 
 import { Category } from "../utils/types";
 import { AppData } from "../utils/validators";

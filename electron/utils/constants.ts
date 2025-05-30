@@ -28,6 +28,11 @@ export const IpcKeys = {
   setAllowlist: "set_allowlist",
   getOpenApps: "get_opened_apps",
   shellOpenExternal: "shell_open_external",
+  // Enrolled programs management
+  getEnrolledPrograms: "get_enrolled_programs",
+  enrollProgram: "enroll_program",
+  removeEnrolledProgram: "remove_enrolled_program",
+  showFileDialog: "show_file_dialog",
 };
 
 export type FilterType = "denylist" | "allowlist";
