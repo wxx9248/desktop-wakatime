@@ -37,12 +37,6 @@ contextBridge.exposeInMainWorld("ipcRenderer", {
   setSetting(section: string, key: string, value: string, internal = false) {
     ipcRenderer.send(IpcKeys.setSetting, section, key, value, internal);
   },
-  isMonitored(path: string) {
-    return ipcRenderer.sendSync(IpcKeys.isMonitored, path);
-  },
-  setMonitored(path: string, monitor: boolean) {
-    ipcRenderer.send(IpcKeys.setMonitored, path, monitor);
-  },
   getAllApps() {
     return ipcRenderer.sendSync(IpcKeys.getAllApps);
   },

@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
-import { useDebounceCallback } from "usehooks-ts";
+import { useCallback, useEffect, useState, useRef } from "react";
 
 import type {
   DomainPreferenceType,
@@ -11,6 +10,24 @@ import { Label } from "~/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Textarea } from "~/components/ui/textarea";
 import { IpcKeys } from "../../electron/utils/constants";
+
+// Simple debounce hook
+function useDebounceCallback(
+  callback: (value: string) => void,
+  delay: number
+): (value: string) => void {
+  const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  
+  return useCallback(
+    (value: string) => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      timeoutRef.current = setTimeout(() => callback(value), delay);
+    },
+    [callback, delay]
+  );
+}
 
 export function SettingsPage() {
   const [apiKey, setApiKey] = useState(
@@ -203,7 +220,7 @@ export function SettingsPage() {
       {isBrowserMonitored && (
         <div className="space-y-6">
           <p>
-            The settings below are only applicable because you’ve enabled
+            The settings below are only applicable because you've enabled
             monitoring a browser in the Monitored Apps menu.
           </p>
           <div>
@@ -284,6 +301,7 @@ export function SettingsPage() {
           </div>
         </div>
       )}
+      
       <div className="flex-1"></div>
       <div>
         <p className="text-sm text-muted-foreground">Version: {appVersion}</p>

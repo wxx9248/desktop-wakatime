@@ -1,5 +1,4 @@
 import path from "path";
-import { WindowInfo } from "@miniben90/x-win";
 import { app, nativeImage, Notification, shell, Tray } from "electron";
 import isDev from "electron-is-dev";
 import { autoUpdater } from "electron-updater";
@@ -15,6 +14,17 @@ import { SettingsManager } from "../helpers/settings-manager";
 import { exec, getCLIPath, getDeepLinkUrl, getPlatfrom } from "../utils";
 import { DeepLink } from "../utils/constants";
 import { Logging, LogLevel } from "../utils/logging";
+
+// Local WindowInfo interface for compatibility
+interface WindowInfo {
+  url?: string;
+  title: string;
+  info: {
+    name: string;
+    path: string;
+    processId: number;
+  };
+}
 
 export class Wakatime {
   private lastEntitiy = "";
@@ -82,7 +92,7 @@ export class Wakatime {
             if (browser && Notification.isSupported()) {
               const notification = new Notification({
                 title: "Warning",
-                subtitle: `WakaTime ${browser} extension detected. It’s recommended to only track browsing activity with the ${browser} extension or The Desktop app, but not both.`,
+                subtitle: `WakaTime ${browser} extension detected. It's recommended to only track browsing activity with the ${browser} extension or The Desktop app, but not both.`,
               });
               notification.show();
             }

@@ -5,8 +5,6 @@ export const IpcKeys = {
   getPlatform: "get_platform",
   getSetting: "get_setting",
   setSetting: "set_setting",
-  isMonitored: "is_monitored",
-  setMonitored: "set_monitored",
   autoUpdateEnabled: "auto_update_enabled",
   setAutoUpdateEnabled: "set_auto_update_enabled",
   codeTimeInStatusBar: "code_time_in_status_bar",
@@ -28,6 +26,11 @@ export const IpcKeys = {
   setAllowlist: "set_allowlist",
   getOpenApps: "get_opened_apps",
   shellOpenExternal: "shell_open_external",
+  // Enrolled programs management
+  getEnrolledPrograms: "get_enrolled_programs",
+  enrollProgram: "enroll_program",
+  removeEnrolledProgram: "remove_enrolled_program",
+  showFileDialog: "show_file_dialog",
 };
 
 export type FilterType = "denylist" | "allowlist";
